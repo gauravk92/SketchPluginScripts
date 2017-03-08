@@ -1,0 +1,221 @@
+/**
+ *  INSTALL 
+ *  sudo easy_install pip
+ *  sudo pip install csvkit
+ * 
+ */
+var NSUTF8StringEncoding = 4;
+
+var OUTPUT_PATH = [[NSString alloc] initWithString:"~/Desktop/" + context.document.displayName() + ".json"];
+var CSV_PATH = [[NSString alloc] initWithString:"~/Desktop/" + context.document.displayName() + ".csv"];
+
+var TMPDIR = [[NSProcessInfo processInfo] environment]['TMPDIR'];
+var SKETCHLOG = TMPDIR + "sketch.log";
+
+var initX = 0;
+var initY = 0;
+var pages = context.document.pages();
+var outputContainer = {};
+var csvContainer = [];
+
+for (var x = 0; x< pages.length();x++) {
+var pageContents = pages[x].children();
+
+    var bitmapName = "";
+    var bitmaps = []; // should only contain 1!
+    var bitmapFrame = null;
+    for (var i = 0;i<pageContents.length();i++) {
+        var layer = pageContents[i];
+        if (layer.description().indexOf('MSBitmapLayer') > -1) {
+            var shape = layer.children()[0];
+            var frame = shape.frameInArtboard();
+            initX = frame.origin.x;
+            initY = frame.origin.y;
+            bitmaps.push(layer);
+            bitmapName = layer.name();
+            bitmapFrame = frame;
+        }
+    }
+
+    if (bitmaps.length > 1) {
+        print('ERROR: multiple images found, cannot resolve origin point');
+        return;
+    }
+
+    var output = [];
+    var csvOutput = [];
+
+    for (var i = 0;i<pageContents.length();i++) {
+        var layer = pageContents[i];
+
+        var shape = layer.children()[0];
+        var frame = shape.frameInArtboard();
+
+        var obj = {};
+        obj.name = layer.name();
+        obj.x = Math.floor(frame.origin.x - initX);
+        obj.y = Math.floor(frame.origin.y - initY);
+        obj.w = Math.floor(frame.size.width);
+        obj.h = Math.floor(frame.size.height);
+
+        // skip non descript/dupe layers
+        if (obj.name == "Path") {
+            continue;
+        }
+        // skip the bitmap layer
+        if ([layer isEqual:bitmaps[0]]) {   
+            continue;
+        }
+        // skip any page layers
+        if (layer.description().indexOf('MSPage') > -1) {
+            continue;
+        }
+
+        output.push(obj);
+        var csvDataItem = {};
+        csvDataItem.page = pages[x].name();
+        for (var outputKey in obj) {
+            csvDataItem[outputKey] = obj[outputKey];   
+        }
+        csvOutput.push(csvDataItem);
+    }
+
+    //log(pageContents);
+
+    print(bitmaps[0]);
+    print({initX: initX, initY: initY});
+    outputContainer[bitmapName] = output;
+    //copyObjectJSONToClipboard(output);
+    //print("copied successfully");
+    
+    var imageObj = {};
+    imageObj.page = pages[x].name();
+    imageObj.name = bitmapName;
+    imageObj.x = 0;
+    imageObj.y = 0;
+    imageObj.w = Math.floor(bitmapFrame.size.width);
+    imageObj.h = Math.floor(bitmapFrame.size.height);
+    csvContainer.push(imageObj);
+
+    for (var d = csvOutput.length - 1;d>=0;d--) {
+        csvContainer.push(csvOutput[d]);   
+    }
+    
+}
+
+//var outputData = [];
+//for (var outputKey in outputContainer) {
+//    for (var i = 0;i<outputContainer[outputKey].length;i++) {
+//        var itemData = outputContainer[outputKey][i];
+//        outputData.push({'page':outputKey,
+//                         'layer': itemData.name,
+//                         'x': itemData.x,
+//                         'y': itemData.y,
+//                         'w': itemData.w,
+//                         'h': itemData.h});
+//    }
+//}
+
+var jsonData = [NSJSONSerialization dataWithJSONObject:csvContainer options:0 error:0];
+//var jsonString = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
+//var csvString = [[NSString alloc] initWithString:Baby.unparse(outputContainer)];
+//var csvData = [csvString dataUsingEncoding:NSUTF8StringEncoding];
+var outputPath = [OUTPUT_PATH stringByExpandingTildeInPath];
+[jsonData writeToFile:outputPath atomically:0];
+var csvOutputPath = [CSV_PATH stringByExpandingTildeInPath];
+
+var pipe = [NSPipe pipe];
+
+var task = [[NSTask alloc] init];
+[task setStandardOutput:pipe];
+task.launchPath = "/usr/local/bin/in2csv";
+task.arguments = ["-f", "json", outputPath];
+var file = [pipe fileHandleForReading];                  
+                  
+[task launch];
+
+var data = [file readDataToEndOfFile];
+[data writeToFile:csvOutputPath atomically:0];
+
+
+//copyObjectJSONToClipboard(outputContainer);
+//print('copied successfully');
+    
+function jsonObjectToString(obj) {
+    var data = [NSJSONSerialization dataWithJSONObject:obj options:0 error:0];
+    return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+}
+
+function copyObjectJSONToClipboard(obj) {
+    
+    var outputString = jsonObjectToString(obj);
+
+    var pasteBoard = NSPasteboard.generalPasteboard();
+
+    // first you must clear the contents of the clipboard in order to write to it.
+    pasteBoard.clearContents();
+    // now read write our String and an Array with 1 item at index 0
+    pasteBoard.writeObjects([outputString]);
+}
+
+function print(x) {
+    var fh = [NSFileHandle fileHandleForWritingAtPath:SKETCHLOG];
+    if (!fh) {
+        [[NSFileManager defaultManager] createFileAtPath:SKETCHLOG contents:[NSData data] attributes:[NSDictionary dictionary]];
+        fh = [NSFileHandle fileHandleForWritingAtPath:SKETCHLOG];
+    }
+    if (!fh) {
+        throw "some major error getting file handle of " + SKETCHLOG;
+        return false;   
+    }
+
+    [fh seekToEndOfFile];
+    var strData = null;
+    if (x.hasOwnProperty('debugDescription')) {
+        strData = [[[NSString alloc] initWithString:x.debugDescription()] dataUsingEncoding:NSUTF8StringEncoding];   
+    } else if (typeof x == 'string') {
+        strData = [[[NSString alloc] initWithString:x] dataUsingEncoding:NSUTF8StringEncoding];
+    } else {
+        var str = jsonObjectToString(x);
+        strData = [str dataUsingEncoding:NSUTF8StringEncoding];   
+    }
+    [fh writeData:strData];
+    var newLineData = [[[NSString alloc] initWithString:"\n"] dataUsingEncoding:NSUTF8StringEncoding];
+    [fh writeData:newLineData];
+    [fh closeFile];
+    return true;
+}
+
+function dump(obj){
+  log("#####################################################################################")
+  log("## Dumping object " + obj )
+  log("## obj class is: " + [obj className])
+  log("#####################################################################################")
+  log("obj.properties:")
+  log("#####################################################################################")
+  log([obj class].mocha().properties())
+  log("obj.propertiesWithAncestors:")
+  log([obj class].mocha().propertiesWithAncestors())
+  log("#####################################################################################")
+  log("obj.classMethods:")
+  log("#####################################################################################")
+  log([obj class].mocha().classMethods())
+  log("obj.classMethodsWithAncestors:")
+  log([obj class].mocha().classMethodsWithAncestors())
+  log("#####################################################################################")
+  log("obj.instanceMethods:")
+  log("#####################################################################################")
+  log([obj class].mocha().instanceMethods())
+  log("obj.instanceMethodsWithAncestors:")
+  log([obj class].mocha().instanceMethodsWithAncestors())
+  log("#####################################################################################")
+  log("obj.protocols:")
+  log("#####################################################################################")
+  log([obj class].mocha().protocols())
+  log("obj.protocolsWithAncestors:")
+  log([obj class].mocha().protocolsWithAncestors())
+  log("#####################################################################################")
+  log("obj.treeAsDictionary():")
+  log("#####################################################################################")
+  log(obj.treeAsDictionary())
+}

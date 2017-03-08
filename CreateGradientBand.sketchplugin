@@ -1,0 +1,150 @@
+var NSUTF8StringEncoding = 4;
+
+//var INPUT_PATH = "~/Desktop/sketch-tapmaps.json";
+//var INPUT_STRING = [[NSString alloc] initWithString:INPUT_PATH];
+//var INPUT_DATA = [NSString stringWithContentsOfFile:[INPUT_STRING stringByExpandingTildeInPath] encoding:NSUTF8StringEncoding error:0];
+
+var TMPDIR = [[NSProcessInfo processInfo] environment]['TMPDIR'];
+var SKETCHLOG = TMPDIR + "sketch.log";
+
+//var MODIFY_LAYER_NAME = 0;
+
+//var initX = 0;
+//var initY = 0;
+var pages = context.document.pages();
+var currentPage = context.document.currentPage();
+var contents = context.document.currentPage().children();
+//print(contents);
+print('starting');
+//var INPUT = JSON.parse(JSON.parse(INPUT_DATA));
+
+//log(contents);
+//
+//print(INPUT);
+//
+//for (var i = 0;i<contents.length();i++) {
+//	var layer = contents[i];
+//	//log(layer);
+//	//dump(layer);
+//	log(layer.name());
+//	if (layer.description().indexOf("MSShapeGroup") > -1 && INPUT.hasOwnProperty(layer.name())) {
+//		layer.style().fills().removeStylePartAtIndex(0);
+//		var fill = layer.style().fills().addNewStylePart();
+//		fill.color = MSColor.colorWithSVGString("#" + INPUT[layer.name()]['color']);	
+//        if (MODIFY_LAYER_NAME) {
+//            var val = parseInt(INPUT[layer.name()]['value'] * 100);
+//            layer.name = layer.name() + '-' + val + '%';
+//        }
+//	}
+//}
+
+var colors = ['#00008f', '#00009f', '#0000af', '#0000bf', '#0000cf', '#0000df', '#0000ef', '#0000ff', '#000fff', '#001fff', '#002fff', '#003fff', '#004fff', '#005fff', '#006fff', '#007fff', '#008fff', '#009fff', '#00afff', '#00bfff', '#00cfff', '#00dfff', '#00efff', '#00ffff', '#0fffef', '#1fffdf', '#2fffcf', '#3fffbf', '#4fffaf', '#5fff9f', '#6fff8f', '#7fff7f', '#8fff6f', '#9fff5f', '#afff4f', '#bfff3f', '#cfff2f', '#dfff1f', '#efff0f', '#ffff00', '#ffef00', '#ffdf00', '#ffcf00', '#ffbf00', '#ffaf00', '#ff9f00', '#ff8f00', '#ff7f00', '#ff6f00', '#ff5f00', '#ff4f00', '#ff3f00', '#ff2f00', '#ff1f00', '#ff0f00', '#ff0000', '#ef0000', '#df0000', '#cf0000', '#bf0000', '#af0000', '#9f0000', '#8f0000', '#7f0000'];
+
+for (var i = 0;i<colors.length;i++) {
+    var rect = [currentPage addLayerOfType:"rectangle"];
+    
+    var frame = [rect frame];
+    [frame setWidth:20];
+    [frame setHeight:20];
+    [frame setX:10 * i];
+    
+    var fill = rect.style().fills().addNewStylePart();
+    fill.color = MSColor.colorWithSVGString(colors[i]);
+    
+}
+//
+//var fill = layer.style().fills().addNewStylePart();
+//		fill.color = MSColor.colorWithSVGString("#" + INPUT[layer.name()]['color']);	
+//
+//var rectangle = [[doc currentPage] addLayerOfType:"rectangle"]
+//
+//	var frame = [rectangle frame]
+//	[frame setWidth:rectWidth]
+//	var height = rectWidth*com.buscarini.goldenRatio
+//	[frame setHeight:height]
+//	
+//	var color = [[[[rectangle style] fills] addNewStylePart] color]
+//	[color setRed:0.5]
+//	[color setGreen:0.5]
+//	[color setBlue:0.5]
+
+print('completed successfully');
+
+
+function jsonObjectToString(obj) {
+    var data = [NSJSONSerialization dataWithJSONObject:obj options:0 error:0];
+    return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+}
+
+function copyObjectJSONToClipboard(obj) {
+    
+    var outputString = jsonObjectToString(obj);
+
+    var pasteBoard = NSPasteboard.generalPasteboard()
+
+    // first you must clear the contents of the clipboard in order to write to it.
+    pasteBoard.clearContents()
+    // now read write our String and an Array with 1 item at index 0
+    pasteBoard.writeObjects([outputString])   
+}
+
+function print(x) {
+    var fh = [NSFileHandle fileHandleForWritingAtPath:SKETCHLOG];
+    if (!fh) {
+        [[NSFileHandle defaultManager] createFileAtPath:SKETCHLOG contents:0 attributes:0];
+        fh = [NSFileHandle fileHandleForWritingAtPath:SKETCHLOG];
+    }
+    if (!fh) {
+        throw "some major error getting file handle of " + SKETCHLOG;
+    }
+
+    [fh seekToEndOfFile];
+    var strData = null;
+    if (x.hasOwnProperty('debugDescription')) {
+        strData = [[[NSString alloc] initWithString:x.debugDescription()] dataUsingEncoding:NSUTF8StringEncoding];   
+    } else if (typeof x == 'string') {
+        strData = [[[NSString alloc] initWithString:x] dataUsingEncoding:NSUTF8StringEncoding];
+    } else {
+        var str = jsonObjectToString(x);
+        strData = [str dataUsingEncoding:NSUTF8StringEncoding];   
+    }
+    [fh writeData:strData];
+    var newLineData = [[[NSString alloc] initWithString:"\n"] dataUsingEncoding:NSUTF8StringEncoding];
+    [fh writeData:newLineData];
+    [fh closeFile];
+}
+
+
+function dump(obj){
+  log("#####################################################################################")
+  log("## Dumping object " + obj )
+  log("## obj class is: " + [obj className])
+  log("#####################################################################################")
+  log("obj.properties:")
+  log("#####################################################################################")
+  log([obj class].mocha().properties())
+  log("obj.propertiesWithAncestors:")
+  log([obj class].mocha().propertiesWithAncestors())
+  log("#####################################################################################")
+  log("obj.classMethods:")
+  log("#####################################################################################")
+  log([obj class].mocha().classMethods())
+  log("obj.classMethodsWithAncestors:")
+  log([obj class].mocha().classMethodsWithAncestors())
+  log("#####################################################################################")
+  log("obj.instanceMethods:")
+  log("#####################################################################################")
+  log([obj class].mocha().instanceMethods())
+  log("obj.instanceMethodsWithAncestors:")
+  log([obj class].mocha().instanceMethodsWithAncestors())
+  log("#####################################################################################")
+  log("obj.protocols:")
+  log("#####################################################################################")
+  log([obj class].mocha().protocols())
+  log("obj.protocolsWithAncestors:")
+  log([obj class].mocha().protocolsWithAncestors())
+  log("#####################################################################################")
+  log("obj.treeAsDictionary():")
+  log("#####################################################################################")
+  log(obj.treeAsDictionary())
+}
